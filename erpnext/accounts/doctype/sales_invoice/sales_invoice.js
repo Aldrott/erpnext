@@ -99,6 +99,15 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends (
 			this.frm.page.set_inner_btn_group_as_primary(__("Create"));
 		}
 
+		this.frm.add_custom_button(__("Update Items"), () => {
+						erpnext.utils.update_child_items({
+							frm: this.frm,
+							child_docname: "items",
+							child_doctype: "Sales Invoice Item",
+							cannot_add_row: false,
+						});
+					});
+
 		if (doc.docstatus == 1 && !doc.is_return) {
 			var is_delivered_by_supplier = false;
 

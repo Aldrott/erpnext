@@ -3165,3 +3165,11 @@ def check_if_return_invoice_linked_with_payment_entry(self):
 			message += " " + ", ".join(payment_entries_link) + " "
 			message += _("to unallocate the amount of this Return Invoice before cancelling it.")
 			frappe.throw(message)
+
+def delete_payment_entries(doc, method=None):
+    payment_entries = doc.get_advance_entries()
+    for pe in payment_entries:
+        pe_doc = frappe.get_doc("Payment Entry", pe.reference_name)
+        pe_doc.cancel()
+        frappe.delete_doc("Payment Entry", pe_doc.name)
+    frappe.db.commit()
