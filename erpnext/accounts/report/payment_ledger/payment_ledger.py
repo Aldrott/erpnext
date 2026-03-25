@@ -127,12 +127,15 @@ class PaymentLedger:
 
 		self.build_conditions()
 
+		from pypika import Order
+
 		# fetch data from table
 		self.voucher_amount = (
 			qb.from_(ple)
 			.select(ple.star)
 			.where(ple.delinked == 0)
 			.where(Criterion.all(self.conditions))
+			.orderby("posting_date", order=Order.desc)
 			.run(as_dict=True)
 		)
 

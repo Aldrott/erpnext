@@ -3637,7 +3637,7 @@ def get_supplier_block_status(party_name):
 def set_child_tax_template_and_map(item, child_item, parent_doc):
 	args = {
 		"item_code": item.item_code,
-		"posting_date": parent_doc.transaction_date,
+		"posting_date": parent_doc.posting_date if parent_doc.doctype == "Sales Invoice" else parent_doc.transaction_date,
 		"tax_category": parent_doc.get("tax_category"),
 		"company": parent_doc.get("company"),
 		"base_net_rate": item.get("base_net_rate"),
@@ -3697,7 +3697,7 @@ def set_order_defaults(parent_doctype, parent_doctype_name, child_doctype, child
 	conversion_factor = flt(get_conversion_factor(item.item_code, child_item.uom).get("conversion_factor"))
 	child_item.conversion_factor = flt(trans_item.get("conversion_factor")) or conversion_factor
 
-	if child_doctype in ["Purchase Order Item", "Supplier Quotation Item"]:
+	if child_doctype in ["Purchase Order Item", "Supplier Quotation Item", "Sales Invoice Item"]:
 		# Initialized value will update in parent validation
 		child_item.base_rate = 1
 		child_item.base_amount = 1
@@ -3710,6 +3710,10 @@ def set_order_defaults(parent_doctype, parent_doctype_name, child_doctype, child
 				).format(frappe.bold(item.item_code))
 			)
 
+	if child_doctype == "Sales Invoice Item":
+		child_item.amount = 1
+		child_item.income_account = p_doc.against_income_account
+	
 	set_child_tax_template_and_map(item, child_item, p_doc)
 	add_taxes_from_tax_template(child_item, p_doc)
 	return child_item
@@ -3767,7 +3771,7 @@ def update_bin_on_delete(row, doctype):
 
 	qty_dict = {}
 
-	if doctype == "Sales Order":
+	if doctype == "Sales Order" or doctype == "Sales Invoice":
 		qty_dict["reserved_qty"] = get_reserved_qty(row.item_code, row.warehouse)
 	else:
 		if row.material_request_item:
@@ -3989,7 +3993,7 @@ def update_child_qty_rate(parent_doctype, trans_items, parent_doctype_name, chil
 			)
 			prev_uom, new_uom = child_item.get("uom"), d.get("uom")
 
-			if parent_doctype == "Sales Order":
+			if parent_doctype == "Sales Order" or parent_doctype == "Sales Invoice":
 				prev_date, new_date = child_item.get("delivery_date"), d.get("delivery_date")
 			elif parent_doctype == "Purchase Order":
 				prev_date, new_date = child_item.get("schedule_date"), d.get("schedule_date")
