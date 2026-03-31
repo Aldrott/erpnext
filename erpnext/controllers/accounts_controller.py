@@ -4183,6 +4183,10 @@ def update_child_qty_rate(parent_doctype, trans_items, parent_doctype_name, chil
 		parent.update_project()
 		parent.update_prevdoc_status("submit")
 		parent.update_delivery_status()
+	
+	# Amend-Sales-Invoice: Update the payment ledger entry
+	elif parent_doctype == "Sales Invoice":
+		parent.make_gl_entries(from_update_items=True)
 
 	parent.reload()
 	validate_workflow_conditions(parent)

@@ -127,6 +127,7 @@ class PaymentLedger:
 
 		self.build_conditions()
 
+		# Amend-Sales-Invoice: sort order of payment ledger
 		from pypika import Order
 
 		# fetch data from table
@@ -135,7 +136,7 @@ class PaymentLedger:
 			.select(ple.star)
 			.where(ple.delinked == 0)
 			.where(Criterion.all(self.conditions))
-			.orderby("posting_date", order=Order.desc)
+			.orderby("posting_date", order=Order.asc)
 			.run(as_dict=True)
 		)
 

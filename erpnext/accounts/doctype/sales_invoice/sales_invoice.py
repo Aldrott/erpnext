@@ -1284,7 +1284,8 @@ class SalesInvoice(SellingController):
 
 		return disposal_date
 
-	def make_gl_entries(self, gl_entries=None, from_repost=False):
+	# Amend-Sales-Invoice: Update Transaction Ledger to reflect new items
+	def make_gl_entries(self, gl_entries=None, from_repost=False, from_update_items=False):
 		from erpnext.accounts.general_ledger import make_gl_entries, make_reverse_gl_entries
 
 		auto_accounting_for_stock = erpnext.is_perpetual_inventory_enabled(self.company)
@@ -1299,7 +1300,19 @@ class SalesInvoice(SellingController):
 				else "Yes"
 			)
 
-			if self.docstatus == 1:
+			# Amend-Sales-Invoice: Update Transaction Ledger to reflect new items
+
+			if from_update_items:
+				make_reverse_gl_entries(voucher_type=self.doctype, voucher_no=self.name)
+				make_gl_entries(
+					gl_entries,
+					update_outstanding=update_outstanding,
+					merge_entries=False,
+					from_repost=from_repost,
+				)
+				self.make_exchange_gain_loss_journal()
+			
+			elif self.docstatus == 1:
 				make_gl_entries(
 					gl_entries,
 					update_outstanding=update_outstanding,
