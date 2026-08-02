@@ -207,7 +207,8 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 				"method": "erpnext.controllers.taxes_and_totals.get_round_off_applicable_accounts",
 				"args": {
 					"company": me.frm.doc.company,
-					"account_list": frappe.flags.round_off_applicable_accounts
+					"account_list": frappe.flags.round_off_applicable_accounts,
+					"doc": me.frm.doc,
 				},
 				callback(r) {
 					if (r.message) {
@@ -497,7 +498,7 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 		} else if(tax.charge_type == "On Net Total") {
 			if (tax.account_head in item_tax_map) {
 				current_net_amount = item.net_amount
-			};
+			}
 			current_tax_amount = (tax_rate / 100.0) * item.net_amount;
 		} else if(tax.charge_type == "On Previous Row Amount") {
 			current_net_amount = this.frm.doc["taxes"][cint(tax.row_id) - 1].tax_amount_for_current_item
@@ -674,24 +675,27 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 
 	set_rounded_total() {
 		var disable_rounded_total = 0;
-		if(frappe.meta.get_docfield(this.frm.doc.doctype, "disable_rounded_total", this.frm.doc.name)) {
+		if (frappe.meta.get_docfield(this.frm.doc.doctype, "disable_rounded_total", this.frm.doc.name)) {
 			disable_rounded_total = this.frm.doc.disable_rounded_total;
 		} else if (frappe.sys_defaults.disable_rounded_total) {
 			disable_rounded_total = frappe.sys_defaults.disable_rounded_total;
 		}
 
-		if (cint(disable_rounded_total)) {
-			this.frm.doc.rounded_total = 0;
-			this.frm.doc.base_rounded_total = 0;
-			this.frm.doc.rounding_adjustment = 0;
-			return;
-		}
-
-		if(frappe.meta.get_docfield(this.frm.doc.doctype, "rounded_total", this.frm.doc.name)) {
-			this.frm.doc.rounded_total = round_based_on_smallest_currency_fraction(this.frm.doc.grand_total,
-				this.frm.doc.currency, precision("rounded_total"));
-			this.frm.doc.rounding_adjustment = flt(this.frm.doc.rounded_total - this.frm.doc.grand_total,
-				precision("rounding_adjustment"));
+		if (frappe.meta.get_docfield(this.frm.doc.doctype, "rounded_total", this.frm.doc.name)) {
+			if (cint(disable_rounded_total)) {
+				this.frm.doc.rounded_total = 0;
+				this.frm.doc.rounding_adjustment = 0;
+			} else {
+				this.frm.doc.rounded_total = round_based_on_smallest_currency_fraction(
+					this.frm.doc.grand_total,
+					this.frm.doc.currency,
+					precision("rounded_total"),
+				);
+				this.frm.doc.rounding_adjustment = flt(
+					this.frm.doc.rounded_total - this.frm.doc.grand_total,
+					precision("rounding_adjustment"),
+				);
+			}
 
 			this.set_in_company_currency(this.frm.doc, ["rounding_adjustment", "rounded_total"]);
 		}
@@ -858,12 +862,13 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 		if(["Sales Invoice", "POS Invoice", "Purchase Invoice"].includes(this.frm.doc.doctype)) {
 			let grand_total = this.frm.doc.rounded_total || this.frm.doc.grand_total;
 			let base_grand_total = this.frm.doc.base_rounded_total || this.frm.doc.base_grand_total;
+			let total_amount_to_pay;
 
 			if(this.frm.doc.party_account_currency == this.frm.doc.currency) {
-				var total_amount_to_pay = flt((grand_total - this.frm.doc.total_advance
+				total_amount_to_pay = flt((grand_total - this.frm.doc.total_advance
 					- this.frm.doc.write_off_amount), precision("grand_total"));
 			} else {
-				var total_amount_to_pay = flt(
+				total_amount_to_pay = flt(
 					(flt(base_grand_total, precision("base_grand_total"))
 						- this.frm.doc.total_advance - this.frm.doc.base_write_off_amount),
 					precision("base_grand_total")
@@ -897,14 +902,15 @@ erpnext.taxes_and_totals = class TaxesAndTotals extends erpnext.payments {
 	async set_total_amount_to_default_mop() {
 		let grand_total = this.frm.doc.rounded_total || this.frm.doc.grand_total;
 		let base_grand_total = this.frm.doc.base_rounded_total || this.frm.doc.base_grand_total;
+		let total_amount_to_pay;
 
 		if (this.frm.doc.party_account_currency == this.frm.doc.currency) {
-			var total_amount_to_pay = flt(
+			total_amount_to_pay = flt(
 				grand_total - this.frm.doc.total_advance - this.frm.doc.write_off_amount,
 				precision("grand_total")
 			);
 		} else {
-			var total_amount_to_pay = flt(
+			total_amount_to_pay = flt(
 				(
 					flt(
 						base_grand_total,

@@ -26,8 +26,6 @@ class StockSettings(Document):
 		action_if_quality_inspection_is_not_submitted: DF.Literal["Stop", "Warn"]
 		action_if_quality_inspection_is_rejected: DF.Literal["Stop", "Warn"]
 		allow_existing_serial_no: DF.Check
-		allow_from_dn: DF.Check
-		allow_from_pr: DF.Check
 		allow_internal_transfer_at_arms_length_price: DF.Check
 		allow_negative_stock: DF.Check
 		allow_negative_stock_for_batch: DF.Check
@@ -235,9 +233,6 @@ class StockSettings(Document):
 				)
 			)
 
-	def on_update(self):
-		self.toggle_warehouse_field_for_inter_warehouse_transfer()
-
 	def change_precision_for_for_sales(self):
 		doc_before_save = self.get_doc_before_save()
 		if doc_before_save and (
@@ -288,40 +283,6 @@ class StockSettings(Document):
 				validate_fields_for_doctype=False,
 			)
 
-	def toggle_warehouse_field_for_inter_warehouse_transfer(self):
-		make_property_setter(
-			"Sales Invoice Item",
-			"target_warehouse",
-			"hidden",
-			1 - cint(self.allow_from_dn),
-			"Check",
-			validate_fields_for_doctype=False,
-		)
-		make_property_setter(
-			"Delivery Note Item",
-			"target_warehouse",
-			"hidden",
-			1 - cint(self.allow_from_dn),
-			"Check",
-			validate_fields_for_doctype=False,
-		)
-		make_property_setter(
-			"Purchase Invoice Item",
-			"from_warehouse",
-			"hidden",
-			1 - cint(self.allow_from_pr),
-			"Check",
-			validate_fields_for_doctype=False,
-		)
-		make_property_setter(
-			"Purchase Receipt Item",
-			"from_warehouse",
-			"hidden",
-			1 - cint(self.allow_from_pr),
-			"Check",
-			validate_fields_for_doctype=False,
-		)
-
 
 def clean_all_descriptions():
 	for item in frappe.get_all("Item", ["name", "description"]):
@@ -333,9 +294,8 @@ def clean_all_descriptions():
 
 @frappe.whitelist()
 def get_enable_stock_uom_editing():
-	return frappe.get_cached_value(
+	return frappe.get_single_value(
 		"Stock Settings",
-		None,
 		["allow_to_edit_stock_uom_qty_for_sales", "allow_to_edit_stock_uom_qty_for_purchase"],
 		as_dict=1,
 	)

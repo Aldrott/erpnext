@@ -75,6 +75,9 @@ frappe.ui.form.on("BOM", {
 
 	with_operations: function (frm) {
 		frm.set_df_property("fg_based_operating_cost", "hidden", frm.doc.with_operations ? 1 : 0);
+		if (frm.doc.routing && frm.doc.with_operations && !frm.doc.operations.length) {
+			frm.trigger("routing");
+		}
 	},
 
 	fg_based_operating_cost: function (frm) {
@@ -264,6 +267,7 @@ frappe.ui.form.on("BOM", {
 				reqd: 1,
 				default: 1,
 				onchange: () => {
+					if (!cur_dialog) return;
 					const { quantity, items: rm } = frm.doc;
 					const variant_items_map = rm.reduce((acc, item) => {
 						acc[item.item_code] = item.qty;
@@ -437,7 +441,11 @@ frappe.ui.form.on("BOM", {
 	},
 
 	routing(frm) {
-		if (frm.doc.routing) {
+		// Refetch operations whenever the routing is (re)selected, so that
+		// changing the routing - e.g. on a new BOM version copied from another
+		// BOM - replaces the operations with those of the newly selected routing
+		// instead of keeping the old ones.
+		if (frm.doc.routing && frm.doc.with_operations) {
 			frappe.call({
 				doc: frm.doc,
 				method: "get_routing",
@@ -759,6 +767,8 @@ frappe.ui.form.on("BOM Item", "sourced_by_supplier", function (frm, cdt, cdn) {
 	if (d.sourced_by_supplier) {
 		d.rate = 0;
 		refresh_field("rate", d.name, d.parentfield);
+	} else {
+		get_bom_material_detail(frm.doc, cdt, cdn, false);
 	}
 });
 

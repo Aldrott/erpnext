@@ -779,6 +779,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 					"customer_name": "Jane Doe",
 					"type": "Individual",
 					"default_currency": "USD",
+					"customer_group": "Individual",
 				}
 			)
 			.insert()
@@ -1002,6 +1003,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 					"customer_name": "Jane Doe",
 					"type": "Individual",
 					"default_currency": "USD",
+					"customer_group": "Individual",
 				}
 			)
 			.insert()
@@ -1202,3 +1204,102 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 
 		self.assertEqual(len(report[1]), 2)
 		self.assertEqual([si.name, payment_term1.payment_term_name], [row.voucher_no, row.payment_term])
+
+	def test_project_filter(self):
+		project = frappe.get_doc(
+			{"doctype": "Project", "project_name": "_Test AR Project", "company": self.company}
+		).insert()
+
+		si = self.create_sales_invoice(no_payment_schedule=True, do_not_submit=True)
+		si.project = project.name
+		si.save().submit()
+
+		filters = {
+			"company": self.company,
+			"report_date": today(),
+			"range": "30, 60, 90, 120",
+			"project": [project.name],
+		}
+
+		report = execute(filters)[1]
+		self.assertEqual(len(report), 1)
+		row = report[0]
+		self.assertEqual(row.project, project.name)
+		self.assertEqual(row.invoiced, 100.0)
+
+	def test_project_on_report_output(self):
+		"""
+		Report row must carry the invoice's project even when the payment entry
+		has no project set.
+		"""
+		filters = {
+			"company": self.company,
+			"report_date": today(),
+			"range": "30, 60, 90, 120",
+		}
+
+		project = frappe.get_doc(
+			{"doctype": "Project", "project_name": "_Test AR Project Output", "company": self.company}
+		).insert()
+
+		si = self.create_sales_invoice(no_payment_schedule=True, do_not_submit=True)
+		si.project = project.name
+		si.save().submit()
+
+		# payment has no project — report row must still show the invoice's project
+		self.create_payment_entry(si.name)
+		report = execute(filters)
+
+		self.assertEqual(len(report[1]), 1)
+		row = report[1][0]
+		self.assertEqual([si.name, project.name, 60], [row.voucher_no, row.project, row.outstanding])
+
+	def test_accounts_receivable_respects_user_permissions(self):
+		# Party is a dynamic link on Payment Ledger Entry, so user permissions on Customer
+		# must be applied explicitly. The report should only show permitted customers.
+
+		# Running the report writes an access log that commits, so these invoices survive
+		# tearDown's rollback. Delete and commit them so they don't leak into other tests.
+		def remove_committed_entries():
+			self.clear_old_entries()
+			frappe.db.commit()  # nosemgrep
+
+		self.addCleanup(remove_committed_entries)
+
+		original_customer = self.customer
+		second_customer = "_Test AR Perm Customer"
+
+		# create_customer overrides self.customer, so build the restricted invoice first
+		self.create_customer(customer_name=second_customer)
+		self.create_sales_invoice(no_payment_schedule=True)
+
+		self.customer = original_customer
+		allowed_invoice = self.create_sales_invoice(no_payment_schedule=True)
+
+		test_user = "test_ar_user_permission@example.com"
+		if not frappe.db.exists("User", test_user):
+			user = frappe.new_doc("User")
+			user.email = test_user
+			user.first_name = "AR Perm"
+			user.append("roles", {"role": "Accounts User"})
+			user.save()
+
+		frappe.permissions.add_user_permission("Customer", original_customer, test_user)
+
+		filters = {
+			"company": self.company,
+			"party_type": "Customer",
+			"report_date": today(),
+			"range": "30, 60, 90, 120",
+		}
+
+		frappe.set_user(test_user)
+		try:
+			report = execute(filters)
+		finally:
+			frappe.set_user("Administrator")
+
+		parties = {row.party for row in report[1]}
+		self.assertIn(original_customer, parties)
+		self.assertNotIn(second_customer, parties)
+		self.assertEqual(allowed_invoice.customer, original_customer)

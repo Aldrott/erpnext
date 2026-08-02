@@ -7,6 +7,7 @@ from frappe import _
 from frappe.utils import flt, getdate
 from pypika import Tuple
 
+from erpnext.accounts.report.utils import validate_mandatory_date_range
 from erpnext.accounts.utils import get_currency_precision
 
 
@@ -33,9 +34,7 @@ def execute(filters=None):
 
 def validate_filters(filters):
 	"""Validate if dates are properly set"""
-	filters = frappe._dict(filters or {})
-	if filters.from_date > filters.to_date:
-		frappe.throw(_("From Date must be before To Date"))
+	validate_mandatory_date_range(filters or {})
 
 
 def get_result(filters, tds_accounts, tax_category_map, net_total_map):
@@ -119,8 +118,8 @@ def get_result(filters, tds_accounts, tax_category_map, net_total_map):
 
 				row.update(
 					{
-						"section_code": tax_withholding_category or "",
-						"entity_type": party_map.get(party, {}).get(party_type),
+						"tax_withholding_category": tax_withholding_category or "",
+						"party_entity_type": party_map.get(party, {}).get(party_type),
 						"rate": rate,
 						"total_amount": total_amount,
 						"grand_total": grand_total,
@@ -141,7 +140,7 @@ def get_result(filters, tds_accounts, tax_category_map, net_total_map):
 				else:
 					entries[key] = row
 	out = list(entries.values())
-	out.sort(key=lambda x: (x["section_code"], x["transaction_date"], x["ref_no"]))
+	out.sort(key=lambda x: (x["tax_withholding_category"], x["transaction_date"], x["ref_no"]))
 
 	return out
 
@@ -205,9 +204,9 @@ def get_columns(filters):
 	pan = "pan" if frappe.db.has_column(filters.party_type, "pan") else "tax_id"
 	columns = [
 		{
-			"label": _("Section Code"),
+			"label": _("Tax Withholding Category"),
 			"options": "Tax Withholding Category",
-			"fieldname": "section_code",
+			"fieldname": "tax_withholding_category",
 			"fieldtype": "Link",
 			"width": 90,
 		},
@@ -236,7 +235,12 @@ def get_columns(filters):
 
 	columns.extend(
 		[
-			{"label": _("Entity Type"), "fieldname": "entity_type", "fieldtype": "Data", "width": 100},
+			{
+				"label": _(f"{filters.get('party_type', 'Party')} Type"),
+				"fieldname": "party_entity_type",
+				"fieldtype": "Data",
+				"width": 100,
+			},
 		]
 	)
 	if filters.party_type == "Supplier":
