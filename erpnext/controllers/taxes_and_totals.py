@@ -188,7 +188,12 @@ class calculate_taxes_and_totals:
 			do_not_round_fields = ["valuation_rate", "incoming_rate", "sales_incoming_rate"]
 
 			for item in self.doc.items:
-				self.doc.round_floats_in(item, do_not_round_fields=do_not_round_fields)
+				fieldnames = (
+								df.fieldname
+								for df in self.doc.meta.get("fields", {"fieldtype": ["in", ["Currency", "Float", "Percent"]]}) if df.fieldname not in do_not_round_fields
+							)
+
+				self.doc.round_floats_in(item, fieldnames=fieldnames)
 
 				if item.discount_percentage == 100:
 					item.rate = 0.0

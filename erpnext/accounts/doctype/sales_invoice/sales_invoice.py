@@ -2986,3 +2986,87 @@ def delete_payment_entries(doc, method=None):
         pe_doc.cancel()
         frappe.delete_doc("Payment Entry", pe_doc.name)
     frappe.db.commit()
+
+@frappe.whitelist()
+def make_sales_order(source_name, target_doc=None, ignore_permissions=False, args=None):
+	if args is None:
+		args = {}
+	if isinstance(args, str):
+		args = json.loads(args)
+
+	# 0 qty is accepted, as the qty is uncertain for some items
+	# has_unit_price_items = frappe.db.get_value("Sales Invoice", source_name, "has_unit_price_items")
+
+	# def is_unit_price_row(source):
+		# return has_unit_price_items and source.qty == 0
+
+	def postprocess(source, target):
+		set_missing_values(source, target)
+		# Get the advance paid Journal Entries in Sales Invoice Advance
+		if target.get("allocate_advances_automatically"):
+			target.set_advances()
+
+	def set_missing_values(source, target):
+		target.transaction_date = source.posting_date
+		target.delivery_date = source.posting_date
+	
+
+	def update_item(source, target, source_parent):
+		def get_billed_qty(so_item_name):
+			from frappe.query_builder.functions import Sum
+
+			table = frappe.qb.DocType("Sales Order Item")
+			query = (
+				frappe.qb.from_(table)
+				.select(Sum(table.qty).as_("qty"))
+				.where((table.docstatus == 1) & (table.so_detail == so_item_name))
+			)
+			return query.run(pluck="qty")[0] or 0
+
+		target.delivery_date = source_parent.posting_date
+		source.sales_order = target.name
+
+	def select_item(d):
+		filtered_items = args.get("filtered_children", [])
+		child_filter = d.name in filtered_items if filtered_items else True
+		return child_filter
+
+	doclist = get_mapped_doc(
+		"Sales Invoice",
+		source_name,
+		{
+			"Sales Invoice": {
+				"doctype": "Sales Order",
+				"field_map": {
+					"party_account_currency": "party_account_currency",
+					# "posting_date": "transaction_date",
+				},
+				"field_no_map": ["payment_terms_template"],
+				# "validation": {"docstatus": ["=", 1]},
+			},
+			"Sales Invoice Item": {
+				"doctype": "Sales Order Item",
+				# "field_map": {
+				# 	"name": "so_detail",
+				# 	"parent": "sales_order",
+				# },
+				"postprocess": update_item,
+			},
+			"Sales Taxes and Charges": {
+				"doctype": "Sales Taxes and Charges",
+				"reset_value": True,
+			},
+			"Sales Team": {"doctype": "Sales Team", "add_if_empty": True},
+		},
+		target_doc,
+		postprocess,
+		ignore_permissions=ignore_permissions,
+	)
+
+	automatically_fetch_payment_terms = cint(
+		frappe.db.get_single_value("Accounts Settings", "automatically_fetch_payment_terms")
+	)
+	if automatically_fetch_payment_terms:
+		doclist.set_payment_schedule()
+
+	return doclist

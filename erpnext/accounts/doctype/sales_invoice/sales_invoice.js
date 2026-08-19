@@ -99,6 +99,11 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends (
 			this.frm.page.set_inner_btn_group_as_primary(__("Create"));
 		}
 
+		// sales order
+		if (flt(doc.per_billed) < 100 && frappe.model.can_create("Sales Order")) {
+			this.frm.add_custom_button(__("Sales Order"), () => this.make_sales_order(), __("Create"));
+		}
+
 		this.frm.add_custom_button(__("Update Items"), () => {
 			erpnext.utils.update_child_items({
 				frm: this.frm,
@@ -238,6 +243,13 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends (
 		frappe.model.open_mapped_doc({
 			method: "erpnext.accounts.doctype.sales_invoice.sales_invoice.make_maintenance_schedule",
 			frm: cur_frm,
+		});
+	}
+
+	make_sales_order() {
+		frappe.model.open_mapped_doc({
+			method: "erpnext.accounts.doctype.sales_invoice.sales_invoice.make_sales_order",
+			frm: this.frm,
 		});
 	}
 

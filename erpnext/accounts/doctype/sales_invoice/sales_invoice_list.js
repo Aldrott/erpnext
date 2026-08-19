@@ -43,5 +43,12 @@ frappe.listview_settings["Sales Invoice"] = {
 				erpnext.bulk_transaction_processing.create(listview, "Sales Invoice", "Payment Entry");
 			});
 		}
+
+		// if (frappe.model.can_create("Sales Order")) {
+		// 	listview.page.add_action_item(__("Sales Order"), () => {
+		// 		erpnext.bulk_transaction_processing.create(listview, "Sales Invoice", "Sales Order");
+		// 	});
+		// }
+
 	},
 };
