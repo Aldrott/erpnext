@@ -2987,6 +2987,7 @@ def delete_payment_entries(doc, method=None):
         frappe.delete_doc("Payment Entry", pe_doc.name)
     frappe.db.commit()
 
+# Added by pratik
 @frappe.whitelist()
 def make_sales_order(source_name, target_doc=None, ignore_permissions=False, args=None):
 	if args is None:
