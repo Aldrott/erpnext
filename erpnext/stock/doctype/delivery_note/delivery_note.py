@@ -32,11 +32,9 @@ class DeliveryNote(SellingController):
 
 	if TYPE_CHECKING:
 		from frappe.types import DF
-
+		from erpnext.accounts.doctype.payment_entry_reference.payment_entry_reference import PaymentEntryReference
 		from erpnext.accounts.doctype.pricing_rule_detail.pricing_rule_detail import PricingRuleDetail
-		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
-			SalesTaxesandCharges,
-		)
+		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import SalesTaxesandCharges
 		from erpnext.selling.doctype.sales_team.sales_team import SalesTeam
 		from erpnext.stock.doctype.delivery_note_item.delivery_note_item import DeliveryNoteItem
 		from erpnext.stock.doctype.packed_item.packed_item import PackedItem
@@ -100,6 +98,7 @@ class DeliveryNote(SellingController):
 		net_total: DF.Currency
 		other_charges_calculation: DF.TextEditor | None
 		packed_items: DF.Table[PackedItem]
+		payment_entries: DF.Table[PaymentEntryReference]
 		per_billed: DF.Percent
 		per_installed: DF.Percent
 		per_returned: DF.Percent
@@ -470,6 +469,29 @@ class DeliveryNote(SellingController):
 			if bin_data:
 				d.actual_qty = flt(bin_data.actual_qty)
 				d.projected_qty = flt(bin_data.projected_qty)
+
+	# Added by pratik (#42)
+	def before_submit(self):
+		# Populate payment_entries table with values corresponding to Sales Invoice
+		sales_invoices = self.get_sales_invoice_ids()
+		# Get all payment entries for the Sales Invoices
+		payment_entries = []
+		for si in sales_invoices:
+			payment_entry_id = frappe.get_all("Payment Entry Reference", filters={"reference_name": si}, pluck="name")
+			payment_entry = frappe.get_doc("Payment Entry Reference", payment_entry_id)
+			payment_entries.append(payment_entry)
+
+		# Clear existing payment_entries table
+		self.set("payment_entries", payment_entries)
+
+	def get_sales_invoice_ids(self):
+		# Get all Sales Invoice IDs
+		sales_invoices = set()
+		for d in self.get("items"):
+			if d.against_sales_invoice:
+				sales_invoices.add(d.against_sales_invoice)
+		return sales_invoices
+	# End of changes by pratik (#42)
 
 	def on_submit(self):
 		self.validate_packed_qty()
