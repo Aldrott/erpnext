@@ -471,7 +471,7 @@ class DeliveryNote(SellingController):
 				d.actual_qty = flt(bin_data.actual_qty)
 				d.projected_qty = flt(bin_data.projected_qty)
 
-	# Added by pratik (#42)
+	# Added by pratik (#40)
 	def before_submit(self):
 		# Populate payment_entries table with values corresponding to Sales Invoice
 		sales_invoices = self.get_sales_invoice_ids()
@@ -492,7 +492,7 @@ class DeliveryNote(SellingController):
 			if d.against_sales_invoice:
 				sales_invoices.add(d.against_sales_invoice)
 		return sales_invoices
-	# End of changes by pratik (#42)
+	# End of changes by pratik (#40)
 
 	def on_submit(self):
 		self.validate_packed_qty()
