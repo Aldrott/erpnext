@@ -2080,6 +2080,41 @@ class SalesInvoice(SellingController):
 		if update:
 			self.db_set("status", self.status, update_modified=update_modified)
 
+	# Added by pratik (#42)
+	def on_trash(self):
+		# Delete all related docs
+
+		# Delete delivery notes
+		delivery_notes = set(frappe.get_all("Delivery Note", filters={"against_sales_invoice": self.name}, pluck="name"))
+		print(delivery_notes)
+		for dn in delivery_notes:
+			dn_doc = frappe.get_doc("Delivery Note", dn)
+			dn_doc.delete(ignore_permissions=True, force=True)
+
+		# Delete payment entries
+		payment_entries = get_payment_entries_for_si(self.name)
+		for pe_doc in payment_entries:
+			pe_doc.delete(ignore_permissions=True, force=True)
+
+		# Delete sales orders (TODO)
+			
+	# End of changes by pratik (#42)
+
+
+
+# Added by pratik (#42)
+def get_payment_entries_for_si(sales_invoice_id):
+	payment_entry_ids = get_payment_entry_ids_for_si(sales_invoice_id)
+	payment_entries = []
+	for pe in payment_entry_ids:
+		payment_entry = frappe.get_doc("Payment Entry Reference", pe)
+		payment_entries.append(payment_entry)
+	return payment_entries
+
+def get_payment_entry_ids_for_si(sales_invoice_id):
+	payment_entry_ids = frappe.get_all("Payment Entry Reference", filters={"reference_name": sales_invoice_id}, pluck="name")
+	return payment_entry_ids
+# End of changes by pratik (#42)
 
 def get_total_in_party_account_currency(doc):
 	total_fieldname = "grand_total" if doc.disable_rounded_total else "rounded_total"

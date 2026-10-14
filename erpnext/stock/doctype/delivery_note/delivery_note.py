@@ -473,14 +473,15 @@ class DeliveryNote(SellingController):
 
 	# Added by pratik (#40)
 	def before_submit(self):
+		# Importing here to prevent circular imports
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_payment_entries_for_si
+
 		# Populate payment_entries table with values corresponding to Sales Invoice
-		sales_invoices = self.get_sales_invoice_ids()
+		sales_invoice_ids = self.get_sales_invoice_ids()
 		# Get all payment entries for the Sales Invoices
 		payment_entries = []
-		for si in sales_invoices:
-			payment_entry_id = frappe.get_all("Payment Entry Reference", filters={"reference_name": si}, pluck="name")
-			payment_entry = frappe.get_doc("Payment Entry Reference", payment_entry_id)
-			payment_entries.append(payment_entry)
+		for si in sales_invoice_ids:
+			payment_entries.extend(get_payment_entries_for_si(si))
 
 		# Clear existing payment_entries table
 		self.set("payment_entries", payment_entries)
