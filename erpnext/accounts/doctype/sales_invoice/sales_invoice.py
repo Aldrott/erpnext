@@ -2092,9 +2092,9 @@ class SalesInvoice(SellingController):
 			dn_doc.delete(ignore_permissions=True, force=True)
 
 		# Delete payment entries
-		payment_entries = get_payment_entries_for_si(self.name)
-		for pe_doc in payment_entries:
-			pe_doc.delete(ignore_permissions=True, force=True)
+		# payment_entries = get_payment_entries_for_si(self.name)
+		# for pe_doc in payment_entries:
+		# 	pe_doc.delete(ignore_permissions=True, force=True)
 
 		# Delete sales orders (TODO)
 			
@@ -2103,17 +2103,9 @@ class SalesInvoice(SellingController):
 
 
 # Added by pratik (#42)
-def get_payment_entries_for_si(sales_invoice_id):
-	payment_entry_ids = get_payment_entry_ids_for_si(sales_invoice_id)
-	payment_entries = []
-	for pe in payment_entry_ids:
-		payment_entry = frappe.get_doc("Payment Entry Reference", pe)
-		payment_entries.append(payment_entry)
-	return payment_entries
-
-def get_payment_entry_ids_for_si(sales_invoice_id):
-	payment_entry_ids = frappe.get_all("Payment Entry Reference", filters={"reference_name": sales_invoice_id}, pluck="name")
-	return payment_entry_ids
+def get_payment_references_for_si(sales_invoice_id):
+	payment_references = frappe.get_all("Payment Entry Reference", filters={"reference_name": sales_invoice_id}, fields=["reference_doctype", "reference_name", "due_date", "total_amount", "outstanding_amount", "allocated_amount", "account"])
+	return payment_references
 # End of changes by pratik (#42)
 
 def get_total_in_party_account_currency(doc):

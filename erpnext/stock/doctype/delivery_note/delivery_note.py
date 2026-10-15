@@ -472,27 +472,25 @@ class DeliveryNote(SellingController):
 				d.projected_qty = flt(bin_data.projected_qty)
 
 	# Added by pratik (#40)
+	def get_sales_invoice_ids(self):
+			# Get all Sales Invoice IDs
+			sales_invoices = set()
+			for d in self.get("items"):
+				if d.against_sales_invoice:
+					sales_invoices.add(d.against_sales_invoice)
+			return sales_invoices
+	
 	def before_submit(self):
 		# Importing here to prevent circular imports
-		from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_payment_entries_for_si
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import get_payment_references_for_si
 
 		# Populate payment_entries table with values corresponding to Sales Invoice
 		sales_invoice_ids = self.get_sales_invoice_ids()
-		# Get all payment entries for the Sales Invoices
-		payment_entries = []
+		# Add all Payment References for each Sales Invoice
 		for si in sales_invoice_ids:
-			payment_entries.extend(get_payment_entries_for_si(si))
-
-		# Clear existing payment_entries table
-		self.set("payment_entries", payment_entries)
-
-	def get_sales_invoice_ids(self):
-		# Get all Sales Invoice IDs
-		sales_invoices = set()
-		for d in self.get("items"):
-			if d.against_sales_invoice:
-				sales_invoices.add(d.against_sales_invoice)
-		return sales_invoices
+			payment_references = get_payment_references_for_si(si)
+			for pr in payment_references:
+				self.append("payment_entries", pr)
 	# End of changes by pratik (#40)
 
 	def on_submit(self):
