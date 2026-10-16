@@ -2104,7 +2104,7 @@ class SalesInvoice(SellingController):
 
 # Added by pratik (#42)
 def get_payment_references_for_si(sales_invoice_id):
-	payment_references = frappe.get_all("Payment Entry Reference", filters={"reference_name": sales_invoice_id}, fields=["reference_doctype", "reference_name", "due_date", "total_amount", "outstanding_amount", "allocated_amount", "account"])
+	payment_references = frappe.get_all("Payment Entry Reference", filters={"reference_name": sales_invoice_id}, fields=["reference_doctype", "reference_name", "due_date", "total_amount", "outstanding_amount", "allocated_amount", "account"], order_by="creation asc")
 	return payment_references
 # End of changes by pratik (#42)
 
