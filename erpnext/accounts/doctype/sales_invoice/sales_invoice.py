@@ -1341,8 +1341,7 @@ class SalesInvoice(SellingController):
 
 		return disposal_date
 
-	# Amend-Sales-Invoice: Update Transaction Ledger to reflect new items
-	def make_gl_entries(self, gl_entries=None, from_repost=False, from_update_items=False):
+	def make_gl_entries(self, gl_entries=None, from_repost=False):
 		from erpnext.accounts.general_ledger import make_gl_entries, make_reverse_gl_entries
 
 		auto_accounting_for_stock = erpnext.is_perpetual_inventory_enabled(self.company)
@@ -1357,19 +1356,7 @@ class SalesInvoice(SellingController):
 				else "Yes"
 			)
 
-			# Amend-Sales-Invoice: Update Transaction Ledger to reflect new items
-
-			if from_update_items:
-				make_reverse_gl_entries(voucher_type=self.doctype, voucher_no=self.name)
-				make_gl_entries(
-					gl_entries,
-					update_outstanding=update_outstanding,
-					merge_entries=False,
-					from_repost=from_repost,
-				)
-				self.make_exchange_gain_loss_journal()
-			
-			elif self.docstatus == 1:
+			if self.docstatus == 1:
 				make_gl_entries(
 					gl_entries,
 					update_outstanding=update_outstanding,
@@ -2079,28 +2066,6 @@ class SalesInvoice(SellingController):
 
 		if update:
 			self.db_set("status", self.status, update_modified=update_modified)
-
-	# Added by pratik (#42)
-	def on_trash(self):
-		# Delete all related docs
-
-		# Delete delivery notes
-		delivery_notes = set(frappe.get_all("Delivery Note", filters={"against_sales_invoice": self.name}, pluck="name"))
-		print(delivery_notes)
-		for dn in delivery_notes:
-			dn_doc = frappe.get_doc("Delivery Note", dn)
-			dn_doc.delete(ignore_permissions=True, force=True)
-
-		# Delete payment entries
-		# payment_entries = get_payment_entries_for_si(self.name)
-		# for pe_doc in payment_entries:
-		# 	pe_doc.delete(ignore_permissions=True, force=True)
-
-		# Delete sales orders (TODO)
-			
-	# End of changes by pratik (#42)
-
-
 
 # Added by pratik (#42)
 def get_payment_references_for_si(sales_invoice_id):
