@@ -2992,13 +2992,40 @@ def check_if_return_invoice_linked_with_payment_entry(self):
 			message += _("to unallocate the amount of this Return Invoice before cancelling it.")
 			frappe.throw(message)
 
-def delete_payment_entries(doc, method=None):
+# Added by pratik (#42)
+def pre_cleanup(doc, method=None):
+	delete_payment_entries(doc)
+	delete_delivery_notes(doc)
+	frappe.db.commit()
+
+def post_cleanup(doc, method=None):
+	delete_sales_orders(doc)
+	frappe.db.commit()
+
+def delete_payment_entries(doc):
     payment_entries = doc.get_advance_entries()
     for pe in payment_entries:
         pe_doc = frappe.get_doc("Payment Entry", pe.reference_name)
         pe_doc.cancel()
         frappe.delete_doc("Payment Entry", pe_doc.name)
-    frappe.db.commit()
+
+def delete_delivery_notes(doc):
+	delivery_note_ids = set(frappe.get_all("Delivery Note", filters={"against_sales_invoice": doc.name}, pluck="name"))
+	for dn_id in delivery_note_ids:
+		frappe.delete_doc("Delivery Note", dn_id)
+
+def delete_sales_orders(doc):
+	sales_order_ids = set()
+	for item in doc.get("items"):
+		if item.sales_order:
+			sales_order_ids.add(item.sales_order)
+
+	for so_id in sales_order_ids:
+		so_doc = frappe.get_doc("Sales Order", so_id)
+		so_doc.cancel()
+		frappe.delete_doc("Sales Order", so_doc.name)
+
+# End of changes by pratik (#42)
 
 # Added by pratik
 @frappe.whitelist()

@@ -369,8 +369,9 @@ doc_events = {
 		"on_cancel": [
 			"erpnext.regional.italy.utils.sales_invoice_on_cancel",
 		],
-		"on_trash": "erpnext.regional.check_deletion_permission",
-		"after_delete": "erpnext.accounts.doctype.sales_invoice.sales_invoice.delete_payment_entries"
+		"on_trash": ["erpnext.regional.check_deletion_permission", 
+                     "erpnext.accounts.doctype.sales_invoice.sales_invoice.pre_cleanup"],
+		"after_delete": "erpnext.accounts.doctype.sales_invoice.sales_invoice.post_cleanup",
 	},
 	"Purchase Invoice": {
 		"validate": [
