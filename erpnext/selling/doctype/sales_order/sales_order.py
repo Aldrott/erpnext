@@ -608,25 +608,33 @@ class SalesOrder(SellingController):
 
 		for item in self.items:
 			if item.delivered_by_supplier:
-				item_delivered_qty = frappe.db.sql(
-					"""select sum(qty)
-					from `tabPurchase Order Item` poi, `tabPurchase Order` po
-					where poi.sales_order_item = %s
-						and poi.item_code = %s
-						and poi.parent = po.name
-						and po.docstatus = 1
-						and po.status = 'Delivered'""",
-					(item.name, item.item_code),
-				)
-
-				item_delivered_qty = item_delivered_qty[0][0] if item_delivered_qty else 0
-				item.db_set("delivered_qty", flt(item_delivered_qty), update_modified=False)
+				item.db_set("delivered_qty", self.get_drop_ship_delivered_qty(item), update_modified=False)
 
 			delivered_qty += min(item.delivered_qty, item.qty)
 			tot_qty += item.qty
 
 		if tot_qty != 0:
 			self.db_set("per_delivered", flt(delivered_qty / tot_qty) * 100, update_modified=False)
+
+	def get_drop_ship_delivered_qty(self, item) -> float:
+		"""Qty of the delivered drop-ship Purchase Orders of `item`, in the Sales Order UOM."""
+		po = frappe.qb.DocType("Purchase Order")
+		po_item = frappe.qb.DocType("Purchase Order Item")
+		delivered_stock_qty = (
+			frappe.qb.from_(po_item)
+			.join(po)
+			.on(po_item.parent == po.name)
+			.select(Sum(po_item.qty * po_item.conversion_factor))
+			.where(
+				(po_item.sales_order_item == item.name)
+				& (po_item.item_code == item.item_code)
+				& (po.docstatus == 1)
+				& (po.status == "Delivered")
+			)
+		).run()[0][0]
+		return flt(
+			flt(delivered_stock_qty) / flt(item.conversion_factor or 1), item.precision("delivered_qty")
+		)
 
 	def update_picking_status(self):
 		total_picked_qty = 0.0
@@ -963,7 +971,8 @@ def make_material_request(source_name, target_doc=None):
 @frappe.whitelist()
 def make_project(source_name, target_doc=None):
 	def postprocess(source, doc):
-		doc.project_type = "External"
+		if frappe.db.exists("Project Type", "External"):
+			doc.project_type = "External"
 		doc.project_name = source.name
 
 	doc = get_mapped_doc(
@@ -1197,8 +1206,9 @@ def make_sales_invoice(
 			invoice = frappe.qb.DocType("Sales Invoice")
 			invoice_item = frappe.qb.DocType("Sales Invoice Item")
 			sales_order_item = frappe.qb.DocType("Sales Order Item")
+			qty_in_stock_uom = invoice_item.qty * invoice_item.conversion_factor
 			credit_note_qty = (
-				Case().when(get_credit_note_return_criterion(invoice), -invoice_item.qty).else_(0)
+				Case().when(get_credit_note_return_criterion(invoice), -qty_in_stock_uom).else_(0)
 			)
 			rows = (
 				frappe.qb.from_(invoice_item)
@@ -1207,12 +1217,14 @@ def make_sales_invoice(
 				.inner_join(invoice)
 				.on(invoice.name == invoice_item.parent)
 				.select(
-					invoice_item.so_detail,
-					Sum(invoice_item.qty).as_("billed_qty"),
-					Sum(credit_note_qty).as_("credit_note_returned_qty"),
+					sales_order_item.name.as_("so_detail"),
+					(Sum(qty_in_stock_uom) / sales_order_item.conversion_factor).as_("billed_qty"),
+					(Sum(credit_note_qty) / sales_order_item.conversion_factor).as_(
+						"credit_note_returned_qty"
+					),
 				)
 				.where((invoice_item.docstatus == 1) & (sales_order_item.parent == source_name))
-				.groupby(invoice_item.so_detail)
+				.groupby(sales_order_item.name)
 			).run(as_dict=True)
 			invoiced_qty_by_item = {row.so_detail: row for row in rows}
 
@@ -1539,6 +1551,7 @@ def make_purchase_order_for_default_supplier(
 						"item_tax_template",
 						"discount_percentage",
 						"discount_amount",
+						"mapped_additional_discount_amount",
 						"pricing_rules",
 						"margin_type",
 						"margin_rate_or_amount",
@@ -1672,6 +1685,7 @@ def make_purchase_order(
 					"item_tax_template",
 					"discount_percentage",
 					"discount_amount",
+					"mapped_additional_discount_amount",
 					"supplier",
 					"pricing_rules",
 				],
@@ -1948,6 +1962,7 @@ def get_work_order_items(sales_order, for_raw_material_request=0):
 	"""Returns items with BOM that already do not have a linked work order"""
 	if sales_order:
 		so = frappe.get_doc("Sales Order", sales_order)
+		so.check_permission("read")
 
 		wo = qb.DocType("Work Order")
 
@@ -2018,7 +2033,10 @@ def get_billed_qty_query(sales_order_item):
 	invoice_item = qb.DocType("Sales Invoice Item")
 	return (
 		qb.from_(invoice_item)
-		.select(IfNull(Sum(invoice_item.qty), 0))
+		.select(
+			IfNull(Sum(invoice_item.qty * invoice_item.conversion_factor), 0)
+			/ sales_order_item.conversion_factor
+		)
 		.where((invoice_item.docstatus == 1) & (invoice_item.so_detail == sales_order_item.name))
 	)
 
@@ -2031,7 +2049,10 @@ def get_pending_qty_criterion(sales_order_item, billed_qty):
 		qb.from_(invoice_item)
 		.inner_join(invoice)
 		.on(invoice.name == invoice_item.parent)
-		.select(IfNull(Sum(-invoice_item.qty), 0))
+		.select(
+			IfNull(Sum(-invoice_item.qty * invoice_item.conversion_factor), 0)
+			/ sales_order_item.conversion_factor
+		)
 		.where(
 			(invoice_item.docstatus == 1)
 			& (invoice_item.so_detail == sales_order_item.name)

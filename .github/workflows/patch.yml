@@ -2,12 +2,6 @@ name: Patch
 
 on:
   pull_request:
-    paths-ignore:
-      - '**.js'
-      - '**.css'
-      - '**.md'
-      - '**.html'
-      - '**.csv'
   workflow_dispatch:
 
 concurrency:
@@ -16,6 +10,10 @@ concurrency:
 
 jobs:
   test:
+    if: >-
+      (github.event_name != 'pull_request'
+      || (github.event.pull_request.user.login == 'mergify[bot]' && startsWith(github.head_ref, 'mergify/merge-queue/'))
+      || (startsWith(github.base_ref, 'version-') && !endsWith(github.base_ref, '-hotfix')))
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
@@ -136,7 +134,8 @@ jobs:
           update_to_version 14
 
           echo "Updating to latest version"
-          git -C "apps/frappe" checkout -q -f "${GITHUB_BASE_REF:-${GITHUB_REF##*/}}"
+          git -C "apps/frappe" fetch --depth 1 upstream "${GITHUB_BASE_REF:-${GITHUB_REF##*/}}"
+          git -C "apps/frappe" checkout -q -f FETCH_HEAD
           git -C "apps/erpnext" checkout -q -f "$GITHUB_SHA"
 
           pgrep honcho | xargs kill

@@ -351,6 +351,7 @@ class SellingController(StockController):
 									"serial_and_batch_bundle": p.serial_and_batch_bundle
 									or get_serial_and_batch_bundle(p, self, d),
 									"name": d.name,
+									"project": d.get("project"),
 									"target_warehouse": p.target_warehouse,
 									"company": self.company,
 									"voucher_type": self.doctype,
@@ -376,6 +377,7 @@ class SellingController(StockController):
 							"conversion_factor": d.conversion_factor,
 							"serial_and_batch_bundle": d.serial_and_batch_bundle,
 							"name": d.name,
+							"project": d.get("project"),
 							"target_warehouse": d.target_warehouse,
 							"company": self.company,
 							"voucher_type": self.doctype,
@@ -560,10 +562,14 @@ class SellingController(StockController):
 					reset_incoming_rate()
 
 				if (
-					(not d.incoming_rate or self.is_new())
-					and not is_standalone
+					not d.incoming_rate
+					or (self.is_new() and not is_standalone)
 					or self.is_internal_transfer()
-					or (get_valuation_method(d.item_code) == "Moving Average" and self.get("is_return"))
+					or (
+						get_valuation_method(d.item_code) == "Moving Average"
+						and self.get("is_return")
+						and not is_standalone
+					)
 				):
 					d.incoming_rate = _get_incoming_rate(
 						{
@@ -696,7 +702,7 @@ class SellingController(StockController):
 		sle = self.get_sl_entries(
 			item_row,
 			{
-				"actual_qty": -1 * flt(item_row.qty),
+				"actual_qty": -1 * get_ledger_qty(item_row.qty),
 				"incoming_rate": item_row.incoming_rate,
 				"recalculate_rate": cint(self.is_return),
 				"serial_and_batch_bundle": serial_and_batch_bundle,
@@ -709,7 +715,7 @@ class SellingController(StockController):
 
 	def get_sle_for_target_warehouse(self, item_row):
 		sle = self.get_sl_entries(
-			item_row, {"actual_qty": flt(item_row.qty), "warehouse": item_row.target_warehouse}
+			item_row, {"actual_qty": get_ledger_qty(item_row.qty), "warehouse": item_row.target_warehouse}
 		)
 
 		if self.docstatus == 1:
@@ -1168,3 +1174,8 @@ def get_serial_and_batch_bundle(child, parent, delivery_note_child=None):
 	child.db_set("serial_and_batch_bundle", doc.name)
 
 	return doc.name
+
+
+def get_ledger_qty(qty) -> float:
+	"""Stock qty as the stock ledger keeps balances, rounded to its precision."""
+	return flt(qty, frappe.get_precision("Stock Ledger Entry", "actual_qty"))

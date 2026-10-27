@@ -417,6 +417,29 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 		so.load_from_db()
 		self.assertEqual(so.get("items")[0].billed_amt, 500)
 
+	def test_order_neutral_credit_note_stays_out_of_later_billing(self):
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
+
+		so = make_sales_order(qty=10, rate=100)
+		si = make_sales_invoice(so.name)
+		si.items[0].qty = 6
+		si.insert()
+		si.submit()
+
+		credit_note = make_sales_return(si.name)
+		credit_note.items[0].qty = -2
+		credit_note.update_billed_amount_in_sales_order = 0
+		credit_note.submit()
+
+		si = make_sales_invoice(so.name)
+		si.items[0].qty = 4
+		si.insert()
+		si.submit()
+
+		so.reload()
+		self.assertEqual(so.items[0].billed_amt, 1000)
+		self.assertEqual(so.per_billed, 100)
+
 	def test_make_sales_invoice_after_update_stock_credit_note(self):
 		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
 
@@ -469,6 +492,51 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 				so.load_from_db()
 				self.assertEqual(so.get("items")[0].returned_qty, 3)
 				self.assertEqual(make_sales_invoice(so.name).get("items")[0].qty, 1)
+
+	def test_delivery_progress_after_returns_in_stock_uom(self):
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return as make_credit_note
+		from erpnext.stock.doctype.delivery_note.delivery_note import make_sales_return
+
+		item = make_item(uoms=[{"uom": "Box", "conversion_factor": 12}])
+		make_stock_entry(item_code=item.name, target="_Test Warehouse - _TC", qty=24, rate=10)
+		so = make_sales_order(item_code=item.name, qty=2, uom="Box", rate=120)
+
+		dn = make_delivery_note(so.name)
+		dn.items[0].qty = 1
+		dn.submit()
+		dn_return = make_sales_return(dn.name)
+		dn_return.items[0].update({"uom": item.stock_uom, "conversion_factor": 1, "qty": -2})
+		dn_return.submit()
+
+		si = make_sales_invoice(so.name)
+		si.update_stock = 1
+		si.items[0].qty = 1
+		si.submit()
+		credit_note = make_credit_note(si.name)
+		credit_note.items[0].update({"uom": item.stock_uom, "conversion_factor": 1, "qty": -4})
+		credit_note.submit()
+
+		so.reload()
+		self.assertEqual(so.items[0].delivered_qty, 1.5)
+		self.assertEqual(so.items[0].returned_qty, 0.5)
+
+	def test_make_sales_invoice_after_credit_note_in_stock_uom(self):
+		from erpnext.accounts.doctype.sales_invoice.sales_invoice import make_sales_return
+
+		item = make_item(uoms=[{"uom": "Box", "conversion_factor": 12}])
+		make_stock_entry(item_code=item.name, target="_Test Warehouse - _TC", qty=24, rate=10)
+		so = make_sales_order(item_code=item.name, qty=2, uom="Box", rate=120)
+
+		si = make_sales_invoice(so.name)
+		si.update_stock = 1
+		si.submit()
+		credit_note = make_sales_return(si.name)
+		credit_note.update_billed_amount_in_sales_order = 1
+		credit_note.items[0].update({"uom": item.stock_uom, "conversion_factor": 1, "qty": -12, "rate": 10})
+		credit_note.submit()
+
+		self.assertTrue(has_potentially_billable_items(so.name))
+		self.assertEqual(make_sales_invoice(so.name).items[0].qty, 1)
 
 	def test_make_sales_invoice_after_partial_billing_multiple_items(self):
 		so = make_sales_order(
@@ -1876,6 +1944,29 @@ class TestSalesOrder(AccountsTestMixin, FrappeTestCase):
 		si = make_sales_invoice(so.name)
 		si.insert()
 		self.assertTrue(si.get("payment_schedule"))
+
+	def test_work_order_items_need_sales_order_read(self):
+		from erpnext.selling.doctype.sales_order.sales_order import get_work_order_items
+		from erpnext.tests.permission_test_utils import (
+			OTHER_COMPANY,
+			as_user,
+			make_company_fenced_user,
+			make_fenced_user,
+		)
+
+		so = make_sales_order(item_code="_Test FG Item", qty=10)
+		expected = get_work_order_items(so.name)
+		self.assertTrue(expected)
+
+		with as_user(make_company_fenced_user("so-wo-items@example.com", ["Sales User"], so.company)):
+			self.assertEqual(get_work_order_items(so.name), expected)
+
+		for outsider in (
+			make_fenced_user("so-wo-items-website@example.com", []),
+			make_company_fenced_user("so-wo-items-fenced@example.com", ["Sales User"], OTHER_COMPANY),
+		):
+			with as_user(outsider):
+				self.assertRaises(frappe.PermissionError, get_work_order_items, so.name)
 
 	def test_make_work_order(self):
 		from erpnext.selling.doctype.sales_order.sales_order import get_work_order_items
