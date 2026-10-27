@@ -8,6 +8,7 @@
  "field_order": [
   "customer_section",
   "title",
+  "custom_bill_number",
   "naming_series",
   "customer",
   "customer_name",
@@ -239,6 +240,7 @@
   },
   {
    "bold": 1,
+   "default": "TRENDZ-INV-.YYYY.-.{custom_bill_number}.-",
    "fieldname": "naming_series",
    "fieldtype": "Select",
    "hide_days": 1,
@@ -247,7 +249,7 @@
    "no_copy": 1,
    "oldfieldname": "naming_series",
    "oldfieldtype": "Select",
-   "options": "ACC-SINV-.YYYY.-\nACC-SINV-RET-.YYYY.-",
+   "options": "TRENDZ-INV-.YYYY.-.{custom_bill_number}.-\nACC-SINV-.YYYY.-\nACC-SINV-RET-.YYYY.-",
    "print_hide": 1,
    "reqd": 1,
    "set_only_once": 1
@@ -597,7 +599,6 @@
   },
   {
    "collapsible": 1,
-   "collapsible_depends_on": "eval:doc.currency && doc.currency != erpnext.get_currency(doc.company)",
    "depends_on": "customer",
    "fieldname": "currency_and_price_list",
    "fieldtype": "Section Break",
@@ -2186,6 +2187,11 @@
    "fieldtype": "Data",
    "is_virtual": 1,
    "label": "Last Scanned Warehouse"
+  },
+  {
+   "fieldname": "custom_bill_number",
+   "fieldtype": "Data",
+   "label": "Bill Number"
   }
  ],
  "grid_page_length": 50,
@@ -2199,7 +2205,7 @@
    "link_fieldname": "consolidated_invoice"
   }
  ],
- "modified": "2026-08-12 12:00:00.000000",
+ "modified": "2026-10-27 23:25:01.240389",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Sales Invoice",

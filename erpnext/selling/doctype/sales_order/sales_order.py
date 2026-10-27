@@ -69,16 +69,13 @@ class SalesOrder(SellingController):
 	from typing import TYPE_CHECKING
 
 	if TYPE_CHECKING:
-		from frappe.types import DF
-
 		from erpnext.accounts.doctype.payment_schedule.payment_schedule import PaymentSchedule
 		from erpnext.accounts.doctype.pricing_rule_detail.pricing_rule_detail import PricingRuleDetail
-		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
-			SalesTaxesandCharges,
-		)
+		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import SalesTaxesandCharges
 		from erpnext.selling.doctype.sales_order_item.sales_order_item import SalesOrderItem
 		from erpnext.selling.doctype.sales_team.sales_team import SalesTeam
 		from erpnext.stock.doctype.packed_item.packed_item import PackedItem
+		from frappe.types import DF
 
 		additional_discount_percentage: DF.Float
 		address_display: DF.SmallText | None
@@ -111,14 +108,13 @@ class SalesOrder(SellingController):
 		cost_center: DF.Link | None
 		coupon_code: DF.Link | None
 		currency: DF.Link
+		custom_bill_number: DF.Data | None
 		customer: DF.Link
 		customer_address: DF.Link | None
 		customer_group: DF.Link | None
 		customer_name: DF.Data | None
 		delivery_date: DF.Date | None
-		delivery_status: DF.Literal[
-			"Not Delivered", "Fully Delivered", "Partly Delivered", "Closed", "Not Applicable"
-		]
+		delivery_status: DF.Literal["Not Delivered", "Fully Delivered", "Partly Delivered", "Closed", "Not Applicable"]
 		disable_rounded_total: DF.Check
 		discount_amount: DF.Currency
 		dispatch_address: DF.SmallText | None
@@ -139,7 +135,7 @@ class SalesOrder(SellingController):
 		loyalty_amount: DF.Currency
 		loyalty_points: DF.Int
 		named_place: DF.Data | None
-		naming_series: DF.Literal["SAL-ORD-.YYYY.-"]
+		naming_series: DF.Literal["TRENDZ-ORD-.YYYY.-.{custom_bill_number}.-", "SAL-ORD-.YYYY.-"]
 		net_total: DF.Currency
 		order_type: DF.Literal["", "Sales", "Maintenance", "Shopping Cart"]
 		other_charges_calculation: DF.TextEditor | None
@@ -171,17 +167,7 @@ class SalesOrder(SellingController):
 		shipping_rule: DF.Link | None
 		skip_delivery_note: DF.Check
 		source: DF.Link | None
-		status: DF.Literal[
-			"",
-			"Draft",
-			"On Hold",
-			"To Deliver and Bill",
-			"To Bill",
-			"To Deliver",
-			"Completed",
-			"Cancelled",
-			"Closed",
-		]
+		status: DF.Literal["", "Draft", "On Hold", "To Deliver and Bill", "To Bill", "To Deliver", "Completed", "Cancelled", "Closed"]
 		tax_category: DF.Link | None
 		tax_id: DF.Data | None
 		taxes: DF.Table[SalesTaxesandCharges]
